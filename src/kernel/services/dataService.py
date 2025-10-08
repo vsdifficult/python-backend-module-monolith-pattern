@@ -1,5 +1,6 @@
 
 from src.modules.users.repository.userRepository import UserRepository
+from src.modules.users.repository.chatRepository import ChatRepository
 from src.modules.users.services.authService import AuthService
 from src.modules.users.services.userService import UserService
 from src.modules.users.utils.validateUsers import UserValidationService
@@ -16,6 +17,7 @@ class DataService:
 
         # Repositories
         self.user_repository = UserRepository()
+        self.chat_repository = ChatRepository()
 
         # Services
         self.user_validation_service = UserValidationService(user_repo=self.user_repository)
@@ -23,8 +25,9 @@ class DataService:
             logger=self.logger,
             userRepo=self.user_repository,
             jwt_secret=jwt_secret
-        ) 
+        )
         self.user_service = UserService(
             logger=self.logger,
-            user_repo=self.user_repository
+            user_repo=self.user_repository,
+            chat_repo=self.chat_repository
         )

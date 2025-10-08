@@ -1,11 +1,22 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class Settings(BaseSettings): 
+class Settings(BaseSettings):
     DB_HOST: str
     DB_PORT: int
-    DB_USER: str  
-    DB_PASS: str 
-    DB_NAME: str 
+    DB_USER: str
+    DB_PASS: str
+    DB_NAME: str
+
+    jwt_secret: str
+    jwt_algorithm: str
+    access_token_expire_minutes: int
+    refresh_token_expire_days: int
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_password: str
+    database_url: str
+    DEBUG: bool = False
 
     @property 
     def DATABASE_URL_asyncpg(self) -> str: 
