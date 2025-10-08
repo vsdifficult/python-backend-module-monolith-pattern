@@ -7,7 +7,7 @@ import uuid
 
 class UserEntity(Base): 
 
-    __tablename__ = "Users" 
+    __tablename__ = "users" 
 
     id = Column(UUID, primary_key=True)
     email = Column(String, unique=True, nullable=False)
