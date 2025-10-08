@@ -1,24 +1,36 @@
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from typing import AsyncGenerator
-from sqlalchemy.orm import Session, sessionmaker, declarative_base
-from sqlalchemy import URL, text 
-from .config import settings 
+
+from .config import settings
+
+Base = declarative_base()
 
 engine = create_async_engine(
-    url = settings.DATABASE_URL_asyncpg,
-    echo = True, 
-    pool_size = 5,
-    max_overflow = 10
-) 
-Base = declarative_base() 
+    settings.DATABASE_URL_asyncpg,
+    echo=settings.DEBUG,  
+    pool_size=20,
+    max_overflow=40,
+    pool_timeout=30,
+    pool_recycle=1800,
+    future=True
+)
 
-async_session = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False) 
+async_session_maker = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+    autocommit=False
+)
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session() as session:
-        yield session 
+    async with async_session_maker() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
-    
-async def init_db(): 
-    async with engine.begin() as conn: 
+async def init_db():
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

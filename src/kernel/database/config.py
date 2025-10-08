@@ -8,14 +8,14 @@ class Settings(BaseSettings):
     DB_NAME: str 
 
     @property 
-    def DATABASE_URL_asyncpg(self): 
-        """DSN string"""
-        return f"postrgesql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}" 
+    def DATABASE_URL_asyncpg(self) -> str: 
+        """DSN string for async engine (asyncpg)"""
+        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     @property 
-    def DATABASE_URL_psycopg(self): 
-        """DSN string"""
-        return f"postrgesql+psycopg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}" 
+    def DATABASE_URL_psycopg(self) -> str: 
+        """DSN string for sync engine (psycopg2/psycopg3)"""
+        return f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     model_config = SettingsConfigDict(env_file=".env") 
 

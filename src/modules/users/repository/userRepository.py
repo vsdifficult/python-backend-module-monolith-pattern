@@ -4,45 +4,45 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 import logging
-import random
 
-from sqlalchemy.future import select 
+from sqlalchemy import update
+from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.modules.users.entities.userEntity import UserEntity
-from src.modules.users.dto.userDto import RegisterUserDto
+from src.modules.users.dto.userDto import RegisterUserDto, UserWithPassword
 
 logger = logging.getLogger(__name__)
 
-class UserRepository: 
+class UserRepository:
     """Repository for working with UserEntity."""
 
     async def create_user(
-        self, session: AsyncSession, user: RegisterUserDto
+        self, session: AsyncSession, user: UserWithPassword
     ) -> Optional[UUID]:
         """
         Create new user in database.
 
         Args:
             session (AsyncSession): active SQLAlchemy session
-            user (RegisterUserDto): DTO with user data
+            user (UserWithPassword): DTO with user data
 
         Returns:
             UUID | None: User id if created successfully, otherwise None
         """
         entity = UserEntity(
-            id=uuid4(), 
+            id=uuid4(),
             email=user.email,
             name=user.name,
-            password=self._hash_password(user.password),
+            password=user.password,
             role=user.role,
-            code=self._generate_confirmation_code(),
+            code=user.code,
         )
 
         try:
-            async with session.begin(): 
-                session.add(entity)
+            session.add(entity)
+            await session.flush()
             await session.refresh(entity)
             logger.info("User created successfully: %s", entity.id)
             return entity.id
@@ -58,91 +58,79 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
 
-    async def delete_user(
-        self, session: AsyncSession, id: UUID
-        ) -> Optional[bool]:  
-        """
-        Delete user  
+    async def get_by_id(self, session: AsyncSession, id: UUID) -> Optional[UserEntity]:
+        """Find user by id."""
+        result = await session.execute(
+            select(UserEntity).filter(UserEntity.id == id)
+        )
+        return result.scalar_one_or_none()
 
-        Args: 
-            session (AsyncSession): active SQLAlchemy session 
-            id (UUID): user id  
-        
-        Returns: 
+    async def delete_user(self, session: AsyncSession, id: UUID) -> bool:
+        """
+        Delete user
+
+        Args:
+            session (AsyncSession): active SQLAlchemy session
+            id (UUID): user id
+
+        Returns:
             True | False: True if deleted successfully, otherwise False
         """
-        entity = await session.execute(
-            select(UserEntity).filter(UserEntity.id == id)
-        ) 
+        entity = await session.get(UserEntity, id)
 
-        try: 
-            async with session.begin(): 
-                session.delete(entity) 
-            await session.commit() 
-            logger.info("User deleted successfully: %s", entity.id)  
+        if entity is None:
+            return False
+
+        try:
+            await session.delete(entity)
+            await session.flush()
+            logger.info("User deleted successfully: %s", id)
             return True
-        
-        except SQLAlchemyError as e: 
-            logger.error("Failed to delete user: %s", e, exc_info=True) 
-            await session.rollback()
-            return False 
-        
-        except Exception as e: 
-            logger.error("Error: %s", e)
+        except SQLAlchemyError as e:
+            logger.error("Failed to delete user: %s", e, exc_info=True)
             await session.rollback()
             return False
-    
-    async def set_email_verification(self,
-        session: AsyncSession,
-        email: str,
-        code: int
-        ) -> Optional[bool]:  
+
+    async def set_email_verification(self, session: AsyncSession, email: str, code: int) -> bool:
         """
-        Verificate user for email 
+        Verify user by email and code
 
-        Args: 
-            session (AsyncSession): active SQLAlchemy session  
-            email (str): user email 
+        Args:
+            session (AsyncSession): active SQLAlchemy session
+            email (str): user email
             code (int): the code that came to the email
-        """ 
+        """
+        user = await self.get_by_email(session, email)
+        if user is None or user.code != code:
+            return False
 
-        entity = await session.execute(
-            select(UserEntity).filter(UserEntity.email == email)
-        )
-        if entity is None: 
-            logger.error("User not found: %s", email, exc_info=True)
-            raise Exception(f"User with {email} not found") 
-        
-        try: 
-            async with session.begin(): 
-
-                if entity.scalar_one_or_none().code == code: 
-
-                    entity.scalar_one_or_none().isVerify == True 
-                    logger.info(f"User {email} verificated")
-
-                    await session.refresh(entity) 
-                    await session.commit()  
-                    return True
-                
-                else: 
-                    logger.error("Invalid code for verification")
-
-                    await session.rollback() 
-                    return False
-                                
-        except SQLAlchemyError as e: 
-            logger.error("Failed verificate user: %s", e, exc_info=True)
+        try:
+            user.is_verify = True
+            await session.flush()
+            logger.info(f"User {email} verified")
+            return True
+        except SQLAlchemyError as e:
+            logger.error("Failed to verify user: %s", e, exc_info=True)
             await session.rollback()
             return False
-        
-        except Exception as e: 
-            logger.error("Error: %s", e)
-            await session.rollback()
-            return False
-    @staticmethod
-    def _generate_confirmation_code() -> int:
-        """Generate random 4-digit code (e.g., for email confirmation)."""
-        return random.randint(1000, 9999) 
-    
 
+    async def update_user(self, session: AsyncSession, id: UUID, data: dict) -> Optional[UserEntity]:
+        """
+        Update user data
+
+        Args:
+            session (AsyncSession): active SQLAlchemy session
+            id (UUID): user id
+            data (dict): data to update
+
+        Returns:
+            UserEntity | None: updated user entity or None
+        """
+        try:
+            await session.execute(update(UserEntity).where(UserEntity.id == id).values(**data))
+            await session.flush()
+            return await session.get(UserEntity, id)
+        except SQLAlchemyError as e:
+            logger.error("Failed to update user: %s", e, exc_info=True)
+            await session.rollback()
+            return None
