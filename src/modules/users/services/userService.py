@@ -1,11 +1,11 @@
 from src.modules.users.repository.userRepository import UserRepository
 from src.modules.users.repository.chatRepository import ChatRepository
-from src.modules.users.dto.userDto import UserDto
+from src.modules.users.dto.userDto import UserDto 
+from src.modules.users.dto.chatDto import * 
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from uuid import UUID
 import logging
-
 
 class UserService:
     """User Service"""
@@ -83,6 +83,65 @@ class UserService:
             self._logger.error(f"Error: {e}") 
             return None  
 
+    async def get_chat(self,
+        session: AsyncSession,
+        chatId: UUID
+    ) -> Optional[ChatDto]: 
+        
+        try: 
+            chat_entity = await self._chat_repo.get_chat_by_id(session, chatId)
+            if not chat_entity:
+                self._logger.warning(f"Chat with id {chatId} not found")
+                return None
+
+            messages_entities = await self._chat_repo.get_messages(session, chatId)
+            
+            messages_dto = [MessageDto(id=msg.id, sender_id=msg.sender_id, content=msg.content, created_at=msg.created_at) for msg in messages_entities]
+
+            chat_dto = ChatDto(
+                id=chat_entity.id,
+                title=chat_entity.title,
+                sender_id=chat_entity.sender_id,
+                recipient_id=chat_entity.recipient_id,
+                messages=messages_dto
+            )
+
+            self._logger.info(f"Successfully get chat {chat_dto.id}")
+            return chat_dto
+        
+        except Exception as e: 
+            self._logger.error(f"Error: {e}") 
+            return None 
+
+    async def get_chats_by_user_id(self,
+        session: AsyncSession,
+        userId: UUID
+    ) -> List[ChatDto]:  
+        
+        try: 
+            chat_entities = await self._chat_repo.get_chats_for_user(session, userId)
+            if not chat_entities:
+                return []
+
+            result_chats = []
+            for chat_entity in chat_entities:
+                messages_entities = await self._chat_repo.get_messages(session, chat_entity.id)
+                messages_dto = [MessageDto(id=msg.id, sender_id=msg.sender_id, content=msg.content, created_at=msg.created_at) for msg in messages_entities]
+                
+                chat_dto = ChatDto(
+                    id=chat_entity.id,
+                    title=chat_entity.title,
+                    sender_id=chat_entity.sender_id,
+                    recipient_id=chat_entity.recipient_id,
+                    messages=messages_dto
+                )
+                result_chats.append(chat_dto)
+            
+            return result_chats
+        except Exception as e: 
+            self._logger.error(f"Error getting chats for user {userId}: {e}") 
+            return []
+   
     async def delete_message(self,
         session: AsyncSession,
         messageId: UUID,
@@ -94,6 +153,4 @@ class UserService:
             return True 
         except Exception as e: 
             self._logger.error(f"Error: {e}") 
-            return None  
-
-            
+            return None   

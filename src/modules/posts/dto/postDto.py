@@ -13,6 +13,7 @@ class PostDto(BaseModel):
     Image: Optional[str] 
 
 class CreatePostDto(BaseModel):
+    Owner: UUID
     Name: str
     Tags: List[str]
     Image: Optional[str]
